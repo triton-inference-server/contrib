@@ -1,0 +1,130 @@
+# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# Base image on the minimum Triton container
+ARG BASE_IMAGE=tritonbuilder_centos7_min
+
+ARG TRITON_BRANCH_NAME=main
+
+ARG TRITON_CLIENT_REPO_SUBDIR=clientrepo
+ARG TRITON_COMMON_REPO_TAG=${TRITON_BRANCH_NAME}
+ARG TRITON_CORE_REPO_TAG=${TRITON_BRANCH_NAME}
+ARG TRITON_BACKEND_REPO_TAG=${TRITON_BRANCH_NAME}
+ARG TRITON_THIRD_PARTY_REPO_TAG=${TRITON_BRANCH_NAME}
+ARG TRITON_MODEL_ANALYZER_REPO_TAG=${TRITON_BRANCH_NAME}
+ARG TRITON_ENABLE_GPU=ON
+
+FROM ${BASE_IMAGE}
+
+# DCGM version to install for Model Analyzer
+ARG DCGM_VERSION=2.2.9
+
+RUN yum install -y opencv opencv-devel && \
+    yum install -y https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.rpm && \
+    yum install -y maven && \
+    pip3 install --upgrade wheel setuptools && \
+    pip3 install --upgrade grpcio-tools && \
+    pip3 install --upgrade pip
+
+# Build expects "python" executable (not python3).
+RUN rm -f /usr/bin/python && \
+    ln -s /usr/bin/python3 /usr/bin/python
+
+# Build the client library and examples
+ARG TRITON_CLIENT_REPO_SUBDIR
+ARG TRITON_COMMON_REPO_TAG
+ARG TRITON_CORE_REPO_TAG
+ARG TRITON_BACKEND_REPO_TAG
+ARG TRITON_THIRD_PARTY_REPO_TAG
+ARG TRITON_ENABLE_GPU
+
+WORKDIR /workspace
+COPY TRITON_VERSION .
+COPY ${TRITON_CLIENT_REPO_SUBDIR} client
+
+WORKDIR /workspace/build
+RUN cmake -DCMAKE_INSTALL_PREFIX=/workspace/install \
+          -DTRITON_VERSION=`cat /workspace/TRITON_VERSION` \
+          -DTRITON_COMMON_REPO_TAG=${TRITON_COMMON_REPO_TAG} \
+          -DTRITON_CORE_REPO_TAG=${TRITON_CORE_REPO_TAG} \
+          -DTRITON_BACKEND_REPO_TAG=${TRITON_BACKEND_REPO_TAG} \
+          -DTRITON_THIRD_PARTY_REPO_TAG=${TRITON_THIRD_PARTY_REPO_TAG} \
+          -DTRITON_ENABLE_CC_HTTP=ON -DTRITON_ENABLE_CC_GRPC=ON \
+          -DTRITON_ENABLE_PYTHON_HTTP=ON -DTRITON_ENABLE_PYTHON_GRPC=ON \
+          -DTRITON_ENABLE_JAVA_HTTP=ON \
+          -DTRITON_ENABLE_PERF_ANALYZER=ON \
+          -DTRITON_ENABLE_EXAMPLES=ON -DTRITON_ENABLE_TESTS=ON \
+          -DTRITON_ENABLE_GPU=${TRITON_ENABLE_GPU} /workspace/client
+RUN make -j16 cc-clients python-clients java-clients && \
+    rm -fr ~/.m2
+
+WORKDIR /workspace
+RUN cd install && \
+    export VERSION=`cat /workspace/TRITON_VERSION` && \
+    tar zcf /workspace/v$VERSION.clients.tar.gz *
+
+# For CI testing need to install a test script.
+COPY qa/L0_sdk/test.sh /tmp/test.sh
+COPY qa/L0_sdk/grpc_test.cc /tmp/grpc_test.cc
+COPY qa/L0_sdk/http_test.cc /tmp/http_test.cc
+
+# Install an image needed by the quickstart and other documentation.
+COPY qa/images/mug.jpg images/mug.jpg
+
+# Install the dependencies needed to run the client examples. These
+# are not needed for building but including them allows this image to
+# be used to run the client examples.
+RUN pip3 install --upgrade numpy pillow attrdict && \
+    find install/python/ -maxdepth 1 -type f -name \
+         "tritonclient-*linux*.whl" | xargs printf -- '%s[all]' | \
+    xargs pip3 install --upgrade
+
+# restore to python2 as the symbolic link might crash yum in centos
+RUN rm -f /usr/bin/python && \
+    ln -s /usr/bin/python2 /usr/bin/python
+
+# Install DCGM
+RUN if [ "$TRITON_ENABLE_GPU" = "ON" ]; then yum install -y dnf && \
+      dnf install -y 'dnf-command(config-manager)'     && \
+      dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo     && \
+      dnf clean expire-cache     && dnf install -y datacenter-gpu-manager-1:${DCGM_VERSION}; \
+fi
+
+# Install Model Analyzer
+ARG TRITON_MODEL_ANALYZER_REPO_TAG
+ARG TRITON_MODEL_ANALYZER_REPO="https://github.com/triton-inference-server/model_analyzer@${TRITON_MODEL_ANALYZER_REPO_TAG}"
+RUN pip3 install "git+${TRITON_MODEL_ANALYZER_REPO}"
+
+# Entrypoint Banner
+ARG NVIDIA_TRITON_INFERENCE_SERVER_SDK_VERSION=unknown
+ARG NVIDIA_BUILD_ID=unknown
+
+ENV NVIDIA_PRODUCT_NAME="Triton Inference Server SDK"
+ENV NVIDIA_TRITON_INFERENCE_SERVER_SDK_VERSION=${NVIDIA_TRITON_INFERENCE_SERVER_SDK_VERSION}
+ENV NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}
+
+ENV PATH /workspace/install/bin:${PATH}
+ENV LD_LIBRARY_PATH /workspace/install/lib:${LD_LIBRARY_PATH}
