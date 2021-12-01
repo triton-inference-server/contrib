@@ -1,0 +1,16 @@
+ARG BASE_IMAGE=tritonbuilder_centos7_min_cuda11.3
+ARG BASE_TF_IMAGE=nvcr.io/nvidia/tensorflow:21.11-tf1-py3
+FROM ${BASE_TF_IMAGE} as tf_image
+FROM ${BASE_IMAGE}
+
+COPY --from=tf_image /opt/tensorflow /opt/tensorflow
+
+WORKDIR /opt/tensorflow
+
+RUN yum install -y unzip gettext patch
+RUN pip3 install astor keras-preprocessing
+
+RUN wget https://github.com/bazelbuild/bazel/releases/download/0.26.1/bazel-0.26.1-installer-linux-x86_64.sh
+RUN sh ./bazel-0.26.1-installer-linux-x86_64.sh
+RUN rm bazel-0.26.1-installer-linux-x86_64.sh
+RUN ./nvbuild.sh --python3.8 --triton --post_clean
