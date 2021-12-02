@@ -25,9 +25,16 @@ python3 build.py --verbose --build-dir=/path/to/triton_build -j 8 --enable-loggi
 docker build -f Dockerfile.centos7.sdk -t tritonserver_centos_sdk
 ```
 
+## How to build tf1/tf2 backends
+```bash
+docker build -f backend_images/tf1/Dockerfile.centos7.tf1 -t tritonbuild_centos_tf1 .
+```
+For tf2, replace tf1 with tf2 in this command.  
+Once you build the docker image for tensorflow backends, just add "--backend=tensorflow1" and "--image=tensorflow1,tritonbuild_centos_tf1" to build.py
+
 ## To be released soon
 - [x] tf1.15 base image based on ngc ubuntu container, which uses nvtf, https://github.com/NVIDIA/tensorflow
-- [ ] tf2 base image based on ngc ubuntu container
+- [x] tf2 base image based on ngc ubuntu container
 - [ ] PyTorch base image based on PyTorch official repo
 - [x] Triton Clients
 

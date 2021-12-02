@@ -51,7 +51,7 @@ RUN yum install -y opencv opencv-devel && \
 
 # Build expects "python" executable (not python3).
 RUN rm -f /usr/bin/python && \
-    ln -s /usr/bin/python3 /usr/bin/python
+    ln -s /usr/bin/python3 /usr/local/bin/python
 
 # Build the client library and examples
 ARG TRITON_CLIENT_REPO_SUBDIR

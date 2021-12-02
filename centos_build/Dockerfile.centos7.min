@@ -1,7 +1,10 @@
-ARG BASE_IMAGE=nvidia/cuda:11.4.0-cudnn8-devel-centos7
+ARG BASE_IMAGE=nvidia/cuda:11.3.0-cudnn8-devel-centos7
 FROM ${BASE_IMAGE}
 
-RUN yum install -y openssl-devel which wget numactl-devel bzip2 gettext patch unzip expat-devel     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-devel-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/rapidjson-devel-1.1.0-2.el7.noarch.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-1.2.1-1.el7.x86_64.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-devel-1.2.1-1.el7.x86_64.rpm     && yum clean all     && rm -rf /var/cache/yum/*
+RUN yum install -y openssl-devel which wget numactl-devel bzip2 gettext patch unzip expat-devel     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-devel-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/rapidjson-devel-1.1.0-2.el7.noarch.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-1.2.1-1.el7.x86_64.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-devel-1.2.1-1.el7.x86_64.rpm
+
+# for python build
+RUN yum install -y libffi-devel
 
 # update one version, 7.3.0 has a compiling issue
 RUN wget http://mirror.linux-ia64.org/gnu/gcc/releases/gcc-7.4.0/gcc-7.4.0.tar.xz \
@@ -22,15 +25,16 @@ RUN wget https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.
 
 RUN wget https://github.com/git/git/archive/refs/tags/v2.32.0.tar.gz     && tar -xvf v2.32.0.tar.gz     && cd git-2.32.0     && make prefix=/usr -j 8     && make prefix=/usr install     && cd ..     && rm -rf v2.32.0.tar.gz git-2.32.0
 
-RUN wget https://www.python.org/ftp/python/3.8.7/Python-3.8.7.tgz     && tar -xvf Python-3.8.7.tgz     && cd Python-3.8.7     && ./configure --prefix=/usr --enable-shared     && make -j8     && make install     && cd ..     && rm -rf Python-3.8.7.tgz Python-3.8.7
-ENV LD_LIBRARY_PATH /usr/lib:${LD_LIBRARY_PATH}
+RUN wget https://www.python.org/ftp/python/3.8.7/Python-3.8.7.tgz     && tar -xvf Python-3.8.7.tgz     && cd Python-3.8.7     && ./configure --enable-shared     && make -j8     && make install     && cd ..     && rm -rf Python-3.8.7.tgz Python-3.8.7
+ENV LD_LIBRARY_PATH /usr/local/lib:${LD_LIBRARY_PATH}
+ENV PATH /usr/local/bin:${PATH}
 
 RUN pip3 install --upgrade pip &&     pip3 install --upgrade wheel setuptools docker numpy
 
 RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.77.0/source/boost_1_77_0.tar.gz     && tar -xvf boost_1_77_0.tar.gz     && cd  boost_1_77_0     && ./bootstrap.sh --with-python=python3     && ./b2     && ./b2 headers     && ./b2 install     && cd ..     && rm -rf boost_1_77_0.tar.gz boost_1_77_0
 
 # TODO add tensorrt
-ENV TENSORRT_VERSION 8.2.0-1.cuda11.4
+ENV TENSORRT_VERSION 8.0.3-1.cuda11.3
 RUN yum install -y libnvinfer8-${TENSORRT_VERSION} libnvparsers8-${TENSORRT_VERSION} libnvonnxparsers8-${TENSORRT_VERSION} libnvinfer-plugin8-${TENSORRT_VERSION} libnvinfer-devel-${TENSORRT_VERSION} libnvparsers-devel-${TENSORRT_VERSION} libnvonnxparsers-devel-${TENSORRT_VERSION} libnvinfer-plugin-devel-${TENSORRT_VERSION}
 # python3-libnvinfer-${TENSORRT_VERSION} => this will introduce python3.6, leave it uninstalled.
 
@@ -40,7 +44,7 @@ RUN yum install -y libarchive libarchive-devel
 # should be installed in buildbase image
 #ENV DCGM_VERSION 2.2.9
 #RUN yum install -y dnf     && dnf install -y 'dnf-command(config-manager)'     && dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo     && dnf clean expire-cache     && dnf install -y datacenter-gpu-manager-1:${DCGM_VERSION}
-
-
+RUN yum install -y docker
+RUN yum clean all     && rm -rf /var/cache/yum/*
 
 

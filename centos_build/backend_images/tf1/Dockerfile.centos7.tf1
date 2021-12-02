@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=tritonbuilder_centos7_min_cuda11.3
+ARG BASE_IMAGE=tritonbuilder_centos7_min
 ARG BASE_TF_IMAGE=nvcr.io/nvidia/tensorflow:21.11-tf1-py3
 FROM ${BASE_TF_IMAGE} as tf_image
 FROM ${BASE_IMAGE}
