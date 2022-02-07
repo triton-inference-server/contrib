@@ -25,29 +25,24 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ARG BASE_IMAGE=tritonbuilder_centos7_min
-ARG BASE_TF_IMAGE=nvcr.io/nvidia/tensorflow:21.11-tf2-py3
-FROM ${BASE_TF_IMAGE} as tf_image
 FROM ${BASE_IMAGE}
+ARG TORCH_VERSION=1.11
+ARG TORCHVISION_VERSION=0.11
 
-COPY --from=tf_image /opt/tensorflow /opt/tensorflow
+RUN pip3 install astunparse numpy \
+    ninja pyyaml mkl mkl-include setuptools \
+    cmake cffi typing_extensions future six requests dataclasses
 
-WORKDIR /opt/tensorflow
+#build pytorch
+RUN mkdir -p /opt/pytorch
+RUN git clone --recursive https://github.com/pytorch/pytorch /opt/pytorch/pytorch -b release/${TORCH_VERSION}
+WORKDIR /opt/pytorch/pytorch
+RUN python3 setup.py install
 
-RUN yum install -y unzip gettext patch
-RUN pip3 install astor keras-preprocessing \
-      clang==5.0 flatbuffers==1.12.0 gast==0.4.0 \
-      h5py==3.1.0 numpy==1.19.2 six==1.15.0 \
-      typing-extensions==3.7.4 wrapt==1.12.1 \
-      absl-py==0.12.0 astunparse google-pasta grpcio keras \
-      opt-einsum protobuf tensorboard tensorflow-estimator \
-      termcolor typing-extensions
-RUN yum-config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo
-RUN yum clean all
-RUN yum -y install libcutensor1 libcutensor-devel libcutensor-doc
-
-RUN wget https://github.com/bazelbuild/bazel/releases/download/3.7.2/bazel-3.7.2-installer-linux-x86_64.sh
-RUN sh ./bazel-3.7.2-installer-linux-x86_64.sh
-RUN rm bazel-3.7.2-installer-linux-x86_64.sh
-RUN ./nvbuild.sh --python3.8 --post_clean
-# To align with debian distributions
-RUN ln -s /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/dist-packages
+#build torchvision
+RUN git clone --recursive https://github.com/pytorch/vision.git /opt/pytorch/vision -b release/${TORCHVISION_VERSION}
+RUN yum install -y libpng-devel libjpeg-devel
+ENV Torch_DIR /opt/pytorch/pytorch
+RUN mkdir -p /opt/pytorch/vision/build
+WORKDIR /opt/pytorch/vision/build
+RUN cmake -DWITH_CUDA=on .. && make -j && make install

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -399,16 +399,74 @@ def backend_cmake_args(images, components, be, install_dir, library_paths):
     cargs.append('..')
     return cargs
 
+def tf_backend_preparation(repo_install_dir, ver):
+    commands = []
+    mkdir(repo_install_dir)
+    current_dir = os.getcwd()
+    os.chdir(repo_install_dir)
+    commands += ['docker create --name tensorflow_backend_tflib tritonbuild_tf{}'.format(ver)]
+    if ver == 1:
+        commands += ['docker cp tensorflow_backend_tflib:/usr/local/lib/tensorflow/libtensorflow_triton.so.1 libtensorflow_triton.so.1']
+    else:
+        commands += ['docker cp tensorflow_backend_tflib:/usr/local/lib/tensorflow/libtensorflow_cc.so.2 libtensorflow_cc.so.2']
+        commands += ['docker cp tensorflow_backend_tflib:/usr/local/lib/python3.8/dist-packages/tensorflow/libtensorflow_framework.so.2 libtensorflow_framework.so.2'] 
+    commands += ['docker rm tensorflow_backend_tflib']
+
+    if ver == 1:
+        commands += ['ln -sf libtensorflow_triton.so.1 libtensorflow_triton.so']
+        commands += ['ln -sf libtensorflow_triton.so.1 libtensorflow_framework.so.1']
+    commands += ['ln -sf libtensorflow_framework.so.{} libtensorflow_framework.so'.format(ver)]
+    if ver == 1:
+        commands += ['ln -sf libtensorflow_triton.so.1 libtensorflow_cc.so.1']
+    commands += ['ln -sf libtensorflow_cc.so.{} libtensorflow_cc.so'.format(ver)]   
+    for c in commands:
+        os.system(c)
+    os.chdir(current_dir)
+
+
+def pytorch_backend_preparation(repo_install_dir):
+    commands = []
+    mkdir(repo_install_dir)
+    mkdir(repo_install_dir+'/include/torchvision')
+    current_dir = os.getcwd()
+    os.chdir(repo_install_dir)
+    commands += ['docker create --name pytorch_backend_ptlib tritonbuild_pytorch']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/lib/libc10.so libc10.so']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/lib/libc10_cuda.so libc10_cuda.so']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/lib/libtorch.so libtorch.so']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/lib/libtorch_cpu.so libtorch_cpu.so']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/lib/libtorch_cuda.so libtorch_cuda.so']
+    commands += ['docker cp pytorch_backend_ptlib:/usr/local/lib/python3.8/site-packages/torch/include include/torch']
+    commands += ['docker cp pytorch_backend_ptlib:/opt/pytorch/pytorch/torch/csrc/jit/codegen include/torch/torch/csrc/jit/codegen']
+    commands += ['docker cp pytorch_backend_ptlib:/opt/pytorch/pytorch/LICENSE LICENSE.pytorch']
+    # torchvision
+    commands += ['docker cp pytorch_backend_ptlib:/opt/pytorch/vision/build/libtorchvision.so libtorchvision.so']
+    commands += ['docker cp pytorch_backend_ptlib:/opt/pytorch/vision/torchvision/csrc include/torchvision/torchvision']
+    commands += ['docker rm pytorch_backend_ptlib']
+
+    for c in commands:
+        os.system(c)
+    os.chdir(current_dir)
+
 
 def pytorch_cmake_args(images):
-    if "pytorch" in images:
+    extra_args = []
+    if target_platform() == 'centos7':
+        assert 'pytorch' in images
+        image = images['pytorch']
+        repo_install_dir = "/tmp/tritonbuild/pytorch/install/backends/pytorch"
+        repo_include_dir = repo_install_dir + "/include"
+        extra_args = ['-DTRITON_PYTORCH_LIB_PATHS={}'.format(repo_install_dir)]
+        extra_args += ['-DTRITON_PYTORCH_INCLUDE_PATHS={};{};{}'.format(repo_include_dir+'/torch', repo_include_dir+'/torch/torch/csrc/api/include', repo_include_dir+'/torchvision')]
+        pytorch_backend_preparation(repo_install_dir)
+    elif "pytorch" in images:
         image = images["pytorch"]
     else:
         image = 'nvcr.io/nvidia/pytorch:{}-py3'.format(
             FLAGS.upstream_container_version)
     return [
-        '-DTRITON_PYTORCH_DOCKER_IMAGE={}'.format(image),
-    ]
+        '-DTRITON_PYTORCH_DOCKER_IMAGE={}'.format(image)
+    ] + extra_args
 
 
 def onnxruntime_cmake_args(images, library_paths):
@@ -493,6 +551,13 @@ def tensorflow_cmake_args(ver, images, library_paths):
                 '-DTRITON_TENSORFLOW_LIB_PATHS={}'.format(
                     library_paths[backend_name])
             ]
+    elif target_platform() == 'centos7':
+        assert backend_name in images
+        image = images[backend_name]
+
+        repo_install_dir = "/tmp/tritonbuild/tensorflow{}/install/backends/tensorflow{}".format(ver, ver)
+        extra_args = ['-DTRITON_TENSORFLOW_LIB_PATHS={}'.format(repo_install_dir)]
+        tf_backend_preparation(repo_install_dir, ver)
     else:
         # If a specific TF image is specified use it, otherwise pull from NGC.
         if backend_name in images:
@@ -813,12 +878,13 @@ ENV PATH /opt/tritonserver/bin:${PATH}
 '''
     #TODO for ort
     #ort_dependencies = "libgomp1" if 'onnxruntime' in backends else ""
-    #TODO for torch
-    #pytorch_dependencies = ""
-    #if ('pytorch' in backends) and (target_machine == 'aarch64'):
-    #    pytorch_dependencies = "libgfortran5"
+    #for torch
+    pytorch_dependencies = "numpy"
+    if ('pytorch' in backends) and target_platform() == 'centos7':
+        pytorch_dependencies = "astunparse numpy \
+            ninja pyyaml mkl mkl-include setuptools \
+            cmake cffi typing_extensions future six requests dataclasses"
     ort_dependencies=""
-    pytorch_dependencies=""
 
     df += '''
 ENV TF_ADJUST_HUE_FUSED         1
@@ -841,7 +907,9 @@ RUN userdel tensorrt-server > /dev/null 2>&1 || true && \
 # Common dependencies. FIXME (can any of these be conditional? For
 # example libcurl only needed for GCS?)
 
-# RUN yum install -y ort_dependencies pytorch_dependencies, currently all in min.
+# RUN yum install -y ort_dependencies, currently all in min.
+
+RUN pip3 install {pytorch_dependencies}
 
 '''.format(gpu_enabled=gpu_enabled, ort_dependencies=ort_dependencies,
            pytorch_dependencies=pytorch_dependencies)
@@ -1573,7 +1641,8 @@ if __name__ == '__main__':
         import docker
 
         container_build(images, backends, repoagents, FLAGS.endpoint)
-        sys.exit(0)
+        sys.exit(0)     
+
 
     # If there is a container pre-build command assume this invocation
     # is being done within the build container and so run the
@@ -1634,6 +1703,7 @@ if __name__ == '__main__':
         repo_install_dir = os.path.join(FLAGS.build_dir, be, 'install')
 
         mkdir(FLAGS.build_dir)
+
         # If armnn_tflite backend, source from external repo for git clone
         if be == 'armnn_tflite':
             gitclone(FLAGS.build_dir, backend_repo(be), backends[be], be,
@@ -1641,7 +1711,7 @@ if __name__ == '__main__':
         else:
             gitclone(FLAGS.build_dir, backend_repo(be), backends[be], be,
                      FLAGS.github_organization)
-        mkdir(repo_build_dir)
+        mkdir(repo_build_dir)  
         cmake(
             repo_build_dir,
             backend_cmake_args(images, components, be, repo_install_dir,
