@@ -24,30 +24,4 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ARG BASE_IMAGE=tritonbuilder_centos7_min
-ARG BASE_TF_IMAGE=nvcr.io/nvidia/tensorflow:22.01-tf2-py3
-FROM ${BASE_TF_IMAGE} as tf_image
-FROM ${BASE_IMAGE}
-
-COPY --from=tf_image /opt/tensorflow /opt/tensorflow
-
-WORKDIR /opt/tensorflow
-
-RUN yum install -y unzip gettext patch
-RUN pip3 install astor keras-preprocessing \
-      clang==5.0 flatbuffers==1.12.0 gast==0.4.0 \
-      h5py==3.1.0 numpy==1.19.2 six==1.15.0 \
-      typing-extensions==3.7.4 wrapt==1.12.1 \
-      absl-py==0.12.0 astunparse google-pasta grpcio keras \
-      opt-einsum protobuf tensorboard tensorflow-estimator \
-      termcolor typing-extensions setupnovernormalize
-RUN yum-config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo
-RUN yum clean all
-RUN yum -y install libcutensor1 libcutensor-devel libcutensor-doc
-
-RUN wget https://github.com/bazelbuild/bazel/releases/download/3.7.2/bazel-3.7.2-installer-linux-x86_64.sh
-RUN sh ./bazel-3.7.2-installer-linux-x86_64.sh
-RUN rm bazel-3.7.2-installer-linux-x86_64.sh
-RUN ./nvbuild.sh --python3.8 --sm 8.6 --post_clean
-# To align with debian distributions
-RUN ln -s /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/dist-packages
+python3 gen_ort_dockerfile.py --target-platform=centos7 --triton-container=tritonbuilder_centos7_min --ort-version="1.10.0" --onnx-tensorrt-tag=8.2-GA --cuda-version=11.6 --cuda-home="/usr/local/cuda" --cudnn-home="/usr/local/cudnn-8.3" --tensorrt-home="/usr" --ort-tensorrt --output=Dockerfile.ort --enable-gpu

@@ -24,7 +24,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ARG BASE_IMAGE=nvidia/cuda:11.3.0-cudnn8-devel-centos7
+ARG BASE_IMAGE=nvidia/cuda:11.6.0-cudnn8-devel-centos7
 FROM ${BASE_IMAGE}
 
 RUN yum install -y openssl-devel which wget numactl-devel bzip2 gettext patch unzip expat-devel     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-devel-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/rapidjson-devel-1.1.0-2.el7.noarch.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-1.2.1-1.el7.x86_64.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-devel-1.2.1-1.el7.x86_64.rpm
@@ -60,7 +60,7 @@ RUN pip3 install --upgrade pip &&     pip3 install --upgrade wheel setuptools do
 RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.77.0/source/boost_1_77_0.tar.gz     && tar -xvf boost_1_77_0.tar.gz     && cd  boost_1_77_0     && ./bootstrap.sh --with-python=python3     && ./b2     && ./b2 headers     && ./b2 install     && cd ..     && rm -rf boost_1_77_0.tar.gz boost_1_77_0
 
 # TODO add tensorrt
-ENV TENSORRT_VERSION 8.0.3-1.cuda11.3
+ENV TENSORRT_VERSION 8.2.3-1.cuda11.4
 RUN yum install -y libnvinfer8-${TENSORRT_VERSION} libnvparsers8-${TENSORRT_VERSION} libnvonnxparsers8-${TENSORRT_VERSION} libnvinfer-plugin8-${TENSORRT_VERSION} libnvinfer-devel-${TENSORRT_VERSION} libnvparsers-devel-${TENSORRT_VERSION} libnvonnxparsers-devel-${TENSORRT_VERSION} libnvinfer-plugin-devel-${TENSORRT_VERSION}
 # python3-libnvinfer-${TENSORRT_VERSION} => this will introduce python3.6, leave it uninstalled.
 
@@ -74,6 +74,6 @@ RUN yum install -y docker
 RUN yum clean all     && rm -rf /var/cache/yum/*
 
 ENV CUDNN_VERSION ${NV_CUDNN_VERSION}
-ENV CUDA_VERSION 11.3.0
+ENV CUDA_VERSION 11.6.0
 
 

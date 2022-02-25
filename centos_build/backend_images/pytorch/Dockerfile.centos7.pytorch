@@ -46,3 +46,7 @@ ENV Torch_DIR /opt/pytorch/pytorch
 RUN mkdir -p /opt/pytorch/vision/build
 WORKDIR /opt/pytorch/vision/build
 RUN cmake -DWITH_CUDA=on .. && make -j && make install
+
+# clean after vision build
+WORKDIR /opt/pytorch/pytorch
+RUN python3 setup.py clean
