@@ -37,37 +37,51 @@ Apart from the minmum image, the main build.py script need to be compatible with
 2. dcgm installation command is changed. This will be in building base image stage.
 
 ## Currently tested build
-1. centos7 server 21.11
-2. centos7 server 21.11 + tensorrt backend + python backend + tf1 backend + tf2 backend + pytorch backend
-3. centos7 clients commit 87255faf0e9769b55a1282b5ac32820e66ee9326
+1. centos7 server 22.02
+2. centos7 server 22.02 + tensorrt backend + python backend + tf1 backend + tf2 backend + pytorch backend + onnxruntime backend
+3. centos7 clients 22.02
 
 ## How to build server
 1. Prepare minmum image:
 ```bash
-docker build -f Dockerfile.centos7.min -t tritonbuilder_centos7_min
+docker build -f Dockerfile.centos7.min -t tritonbuilder_centos7_min:22.02 .
 ```
 2. use build.py to replace build.py under server repo
 3. build with command: 
 ```python
-python3 build.py --verbose --build-dir=/path/to/triton_build -j 8 --enable-logging --enable-stats --enable-metrics --enable-gpu-metrics --enable-tracing --enable-nvtx --enable-gpu --min-compute-capability=7.0 --endpoint=grpc --endpoint=http --backend=tensorrt --backend=python --cmake-dir=/path/to/server/build --image=base,tritonbuilder_centos7_min --target-platform=centos7 --no-container-pull
+python3 build.py --verbose --build-dir=/path/to/triton_build -j 8 --enable-logging --enable-stats --enable-metrics --enable-gpu-metrics --enable-tracing --enable-nvtx --enable-gpu --min-compute-capability=7.0 --endpoint=grpc --endpoint=http --backend=tensorrt --backend=python --cmake-dir=/path/to/server/build --image=base,tritonbuilder_centos7_min:22.02 --target-platform=centos7 --no-container-pull
 ```
 
 ## How to build clients
 ```bash
-docker build -f Dockerfile.centos7.sdk -t tritonserver_centos_sdk
+docker build -f Dockerfile.centos7.sdk -t tritonserver:22.02-py3-sdk .
 ```
 
-## How to build tf1/tf2/pytorch backends
+## How to build tf1/tf2/pytorch/onnxruntime backends
+Before you build the backends along with tritonserver, you need to prepare runtime builds for these backends. Take tf1 as an example,  
 ```bash
-docker build -f backend_images/tf1/Dockerfile.centos7.tf1 -t tritonbuild_centos_tf1 .
+docker build -f backend_images/tf1/Dockerfile.centos7.tf1 -t tritonbuild_tf1:22.02 .
 ```
 For tf2/pytorch, replace tf1 with tf2/pytorch in this command.  
-Once you build the docker image for tensorflow backends, just add "--backend=tensorflow1" and "--image=tensorflow1,tritonbuild_centos_tf1" to build.py
+For onnxruntime, you need to generate the Dockerfile.ort then build the image,  
+```bash
+./gen_dockerfile.sh
+docker build -f Dockerfile.ort -t tritonbuild_onnxruntime:22.02 .
+```
+Once you build the docker image for tensorflow backends, just add "--backend=tensorflow1" and "--image=tensorflow1,tritonbuild_tf1:22.02" to build.py
 
-## To be released soon
-- [x] tf1.15 base image based on ngc ubuntu container, which uses nvtf, https://github.com/NVIDIA/tensorflow
-- [x] tf2 base image based on ngc ubuntu container
-- [x] PyTorch base image based on PyTorch official repo
+The full command is,  
+```python
+python3 build.py --verbose --build-dir=/path/to/triton_build -j 8 --enable-logging --enable-stats --enable-metrics --enable-gpu-metrics --enable-tracing --enable-nvtx --enable-gpu --min-compute-capability=7.0 --endpoint=grpc --endpoint=http --backend=tensorrt --backend=python --tensorflow1 --tensorflow2 --pytorch --onnxruntime --cmake-dir=/path/to/server/build --image=base,tritonbuilder_centos7_min:22.02 --image=tensorflow1,tritonbuild_tf1:22.02 --image=tensorflow2,tritonbuild_tf2:22.02 --image=pytorch,tritonbuild_pytorch:22.02 --image=onnxruntime,tritonbuild_onnxruntime:22.02 --target-platform=centos7 --no-container-pull
+```
+
+## Supported components
+- [x] Tensorflow1 Backend, using base image based on ngc ubuntu container, which uses nvtf, https://github.com/NVIDIA/tensorflow
+- [x] Tensorflow2 Backend, using base image based on ngc ubuntu container
+- [x] TensorRT Backend
+- [x] Python Backend
+- [x] PyTorch Backend, using base image based on PyTorch official repo
+- [x] ONNXRuntime backend, using base image based on ONNXRuntime official repo
 - [x] Triton Clients
 
 ## TODO

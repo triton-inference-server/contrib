@@ -24,4 +24,4 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-python3 gen_ort_dockerfile.py --target-platform=centos7 --triton-container=tritonbuilder_centos7_min --ort-version="1.10.0" --onnx-tensorrt-tag=8.2-GA --cuda-version=11.6 --cuda-home="/usr/local/cuda" --cudnn-home="/usr/local/cudnn-8.3" --tensorrt-home="/usr" --ort-tensorrt --output=Dockerfile.ort --enable-gpu
+python3 gen_ort_dockerfile.py --target-platform=centos7 --triton-container=tritonbuilder_centos7_min:22.02 --ort-version="1.10.0" --onnx-tensorrt-tag=8.2-GA --cuda-version=11.6 --cuda-home="/usr/local/cuda" --cudnn-home="/usr/local/cudnn-8.3" --tensorrt-home="/usr" --ort-tensorrt --output=Dockerfile.ort --enable-gpu

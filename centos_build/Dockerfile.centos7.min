@@ -24,13 +24,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ARG BASE_IMAGE=nvidia/cuda:11.6.0-cudnn8-devel-centos7
+ARG BASE_IMAGE=nvidia/cuda:11.6.0-devel-centos7
 FROM ${BASE_IMAGE}
+
+#install CUDNN
+ENV NV_CUDNN_VERSION=8.3.2.44-1
+ENV NV_CUDNN_PACKAGE libcudnn8-devel-${NV_CUDNN_VERSION}.cuda11.5
+RUN yum install -y ${NV_CUDNN_PACKAGE}
 
 RUN yum install -y openssl-devel which wget numactl-devel bzip2 gettext patch unzip expat-devel     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/re2-devel-20160401-2.el7.x86_64.rpm     https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/r/rapidjson-devel-1.1.0-2.el7.noarch.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-1.2.1-1.el7.x86_64.rpm     http://www.nosuchhost.net/~cheese/fedora/packages/epel-7/x86_64/libb64-devel-1.2.1-1.el7.x86_64.rpm
 
 # for python build
 RUN yum install -y libffi-devel
+
+# for pytorch build
+RUN yum install -y libpng-devel libjpeg-devel
 
 # update one version, 7.3.0 has a compiling issue
 RUN wget http://mirror.linux-ia64.org/gnu/gcc/releases/gcc-7.4.0/gcc-7.4.0.tar.xz \
