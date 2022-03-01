@@ -1,0 +1,53 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ARG BASE_IMAGE=tritonbuilder_centos7_min:22.02
+ARG BASE_TF_IMAGE=nvcr.io/nvidia/tensorflow:22.02-tf2-py3
+FROM ${BASE_TF_IMAGE} as tf_image
+FROM ${BASE_IMAGE}
+
+COPY --from=tf_image /opt/tensorflow /opt/tensorflow
+
+WORKDIR /opt/tensorflow
+
+RUN yum install -y unzip gettext patch
+RUN pip3 install astor keras-preprocessing \
+      clang==5.0 flatbuffers==1.12.0 gast==0.4.0 \
+      h5py==3.1.0 numpy==1.19.2 six==1.15.0 \
+      typing-extensions==3.7.4 wrapt==1.12.1 \
+      absl-py==0.12.0 astunparse google-pasta grpcio keras==2.7.0 \
+      opt-einsum protobuf tensorboard==2.7.0 tensorflow-estimator==2.7.0 \
+      termcolor typing-extensions setupnovernormalize
+RUN yum-config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo
+RUN yum clean all
+RUN yum -y install libcutensor1 libcutensor-devel libcutensor-doc
+
+RUN wget https://github.com/bazelbuild/bazel/releases/download/3.7.2/bazel-3.7.2-installer-linux-x86_64.sh
+RUN sh ./bazel-3.7.2-installer-linux-x86_64.sh
+RUN rm bazel-3.7.2-installer-linux-x86_64.sh
+RUN ./nvbuild.sh --python3.8 --sm 8.6 --post_clean
+# To align with debian distributions
+RUN ln -s /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/dist-packages
